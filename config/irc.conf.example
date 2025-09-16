@@ -1,0 +1,82 @@
+# Example ft_irc configuration (not required by subject)
+port=6667
+password=secret
+welcome=Welcome to ft_irc
+PASS secret
+NICK deneme
+USER deneme 0 * :Gerçek Ad
+JOIN #kanal
+PRIVMSG #kanal :Merhaba!
+
+# Şifreyi yanlış dene
+PASS yanlis
+NICK test1
+USER test1 0 * :Test User
+# Doğru şifreyle tekrar dene
+PASS secret
+NICK test1
+USER test1 0 * :Test User
+
+# Aynı nick ile tekrar dene (hata beklenir)
+NICK test1
+
+# Farklı nick ile değiştir
+NICK test2
+
+# Kayıt olduktan sonra kanal oluştur ve katıl
+JOIN #deneme
+
+# Kanal topic sorgula (topic yoksa boş döner)
+TOPIC #deneme
+
+# Kanal topic ayarla
+TOPIC #deneme :Bu bir test kanalıdır
+
+# Kanal topic tekrar sorgula
+TOPIC #deneme
+
+# Kanal modunu sorgula
+MODE #deneme
+
+# Kanalı invite-only yap
+MODE #deneme +i
+
+# Invite komutu ile başka bir kullanıcıyı davet et (önce başka bir kullanıcı ile bağlanmalısın)
+INVITE test3 #deneme
+
+# Kanal limiti ayarla
+MODE #deneme +l 1
+
+# Kanal şifresi ayarla
+MODE #deneme +k kanalSifre
+
+# Şifreli kanala yanlış şifre ile katılmayı dene
+JOIN #deneme yanlisSifre
+
+# Doğru şifre ile katıl
+JOIN #deneme kanalSifre
+
+# Kanalda operator olmayan bir kullanıcı topic değiştirmeye çalışsın (hata beklenir)
+TOPIC #deneme :Yetkisiz topic denemesi
+
+# Kanalda mesaj gönder
+PRIVMSG #deneme :Kanal mesajı
+
+# Bir kullanıcıya özel mesaj gönder
+PRIVMSG test2 :Özel mesaj
+
+# Kanalda olmayan bir kullanıcıya mesaj gönder (hata beklenir)
+PRIVMSG test4 :Kullanıcı yok
+
+# Kanalı terk et
+PART #deneme :Görüşürüz
+
+# Kayıtlı olmayan komut dene
+FOOBAR
+
+# Sunucudan çık
+QUIT :Çıkış testi
+
+
+QUIT atmıyo 
+portları özel olarak girmek gerekiyor bknz: 6667 -> listening : 4242 -> fatal
