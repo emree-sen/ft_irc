@@ -25,10 +25,10 @@ public:
     void setPassOk(bool ok) { _passOk = ok; }
     bool isPassOk() const { return _passOk; }
 
-    std::string getPrefix() const; // nick!user@ip
+    std::string getPrefix() const;
 
     void appendRead(const char *data, size_t n);
-    bool nextLine(std::string &out); // returns true if a full line available (strips \r\n)
+    bool nextLine(std::string &out);
 
     void queueWrite(const std::string &msg);
     bool hasWrite() const;

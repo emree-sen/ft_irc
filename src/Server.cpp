@@ -45,7 +45,6 @@ Server::~Server() {
 }
 
 void Server::setupSocket() {
-    // Use IPv4 for compatibility
     int yes = 1;
     _listenFd = socket(AF_INET, SOCK_STREAM, 0);
     if (_listenFd < 0) throw std::runtime_error("socket() failed");

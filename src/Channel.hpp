@@ -41,6 +41,12 @@ public:
     void setTopicRestricted(bool b) { _modeT = b; }
     bool isTopicRestricted() const { return _modeT; }
 
+    // compose current mode flags (without parameters) e.g. +itkl
+    std::string modeFlags() const;
+
+    // full mode string including parameters for k and l if set
+    std::string fullModeString() const;
+
     // invites
     void invite(int fd);
     bool isInvited(int fd) const;

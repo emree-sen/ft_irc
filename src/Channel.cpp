@@ -1,4 +1,5 @@
 #include "Channel.hpp"
+#include <sstream>
 #include <algorithm>
 
 Channel::Channel(const std::string &name)
@@ -32,3 +33,23 @@ bool Channel::isOp(int fd) const { return _ops.count(fd) != 0; }
 void Channel::invite(int fd) { _invited.insert(fd); }
 bool Channel::isInvited(int fd) const { return _invited.count(fd) != 0; }
 void Channel::revokeInvite(int fd) { _invited.erase(fd); }
+
+std::string Channel::modeFlags() const {
+    std::string m = "+";
+    if (_modeI) m += 'i';
+    if (_modeT) m += 't';
+    if (_modeK) m += 'k';
+    if (_modeL) m += 'l';
+    return m;
+}
+
+std::string Channel::fullModeString() const {
+    std::string flags = "+";
+    std::string params;
+    if (_modeI) flags += 'i';
+    if (_modeT) flags += 't';
+    if (_modeK) { flags += 'k'; params += _key; }
+    if (_modeL) { flags += 'l'; if (!params.empty()) params += ' '; std::ostringstream oss; oss << _limit; params += oss.str(); }
+    if (params.empty()) return flags;
+    return flags + " " + params;
+}

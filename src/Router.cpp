@@ -153,6 +153,7 @@ void Router::handle(int fd, const std::string &line) {
             Client *member = _s->getClient(fds[i]);
             if (member) {
                 if (!members.empty()) members += " ";
+                if (ch->isOp(fds[i])) members += "@"; // prefix operator
                 members += member->getNick();
             }
         }
@@ -286,44 +287,94 @@ void Router::handle(int fd, const std::string &line) {
                 return;
             }
             if (m.params.size() == 1) {
-                std::string modes = "+";
-                if (ch->isInviteOnly()) modes += 'i';
-                if (ch->isTopicRestricted()) modes += 't';
-                if (!ch->getKey().empty()) modes += 'k';
-                if (ch->getLimit() > 0) modes += 'l';
-                _s->sendToClient(fd, crlf(":ircserv 324 " + target + " " + modes));
+                // Query current modes: include parameters like key and limit
+                std::string reply = ch->fullModeString();
+                _s->sendToClient(fd, crlf(":ircserv 324 " + target + " " + reply));
                 return;
             }
-            bool add = true; // Initialize add for mode handling
-            size_t pidx = 2; // Initialize parameter index for mode arguments
-            std::string flags = m.params[1]; // Extract mode flags
-            for (size_t i = 0; i < flags.size(); ++i) {
-                char f = flags[i];
+            // Changing modes requires channel membership
+            if (!ch->isMember(fd)) {
+                _s->sendToClient(fd, crlf(":ircserv 442 " + target + " :You're not on that channel"));
+                return;
+            }
+            // And operator privileges
+            if (!ch->isOp(fd)) {
+                _s->sendToClient(fd, crlf(":ircserv 482 " + target + " :You're not channel operator"));
+                return;
+            }
+
+            bool add = true;
+            size_t pidx = 2; // parameter index after flag string
+            std::string flagsInput = m.params[1];
+            std::string applied; // accumulate final mode string like +it-l
+            std::vector<std::string> modeParams; // params that correspond to modes requiring them
+
+            for (size_t i = 0; i < flagsInput.size(); ++i) {
+                char f = flagsInput[i];
                 if (f == '+') { add = true; continue; }
                 if (f == '-') { add = false; continue; }
-                if (f == 'i') ch->setInviteOnly(add);
-                else if (f == 't') ch->setTopicRestricted(add);
-                else if (f == 'k') {
-                    if (add) {
+                bool changed = false;
+                switch (f) {
+                    case 'i':
+                        if (ch->isInviteOnly() != add) { ch->setInviteOnly(add); changed = true; }
+                        break;
+                    case 't':
+                        if (ch->isTopicRestricted() != add) { ch->setTopicRestricted(add); changed = true; }
+                        break;
+                    case 'k':
+                        if (add) {
+                            if (pidx < m.params.size()) { ch->setKey(m.params[pidx]); modeParams.push_back(m.params[pidx]); pidx++; changed = true; }
+                            else { _s->sendToClient(fd, crlf(":ircserv 461 MODE :Not enough parameters")); return; }
+                        } else {
+                            if (!ch->getKey().empty()) { ch->setKey(""); changed = true; }
+                        }
+                        break;
+                    case 'l':
+                        if (add) {
+                            if (pidx < m.params.size()) { int lim = std::atoi(m.params[pidx].c_str()); if (lim < 0) lim = 0; ch->setLimit(lim); modeParams.push_back(m.params[pidx]); pidx++; changed = true; }
+                            else { _s->sendToClient(fd, crlf(":ircserv 461 MODE :Not enough parameters")); return; }
+                        } else {
+                            if (ch->getLimit() > 0) { ch->setLimit(0); changed = true; }
+                        }
+                        break;
+                    case 'o':
                         if (pidx < m.params.size()) {
-                            ch->setKey(m.params[pidx++]);
+                            Client *dst = _s->findClientByNick(m.params[pidx]);
+                            if (dst && ch->isMember(dst->getFd())) {
+                                if (add) {
+                                    if (!ch->isOp(dst->getFd())) { ch->addOp(dst->getFd()); changed = true; }
+                                } else {
+                                    if (ch->isOp(dst->getFd())) { ch->removeOp(dst->getFd()); changed = true; }
+                                }
+                                modeParams.push_back(m.params[pidx]);
+                            }
+                            pidx++;
                         } else {
                             _s->sendToClient(fd, crlf(":ircserv 461 MODE :Not enough parameters"));
                             return;
                         }
-                    } else {
-                        ch->setKey("");
-                    }
+                        break;
+                    default:
+                        _s->sendToClient(fd, crlf(":ircserv 472 " + std::string(1, f) + " :Unknown mode flag"));
+                        return;
                 }
-                else if (f == 'l') { if (add) { if (pidx < m.params.size()) { int lim = std::atoi(m.params[pidx++].c_str()); if (lim < 0) lim = 0; ch->setLimit(lim); } } else { ch->setLimit(0); } }
-                else if (f == 'o') { if (pidx < m.params.size()) { Client *dst = _s->findClientByNick(m.params[pidx++]); if (dst) { if (add) ch->addOp(dst->getFd()); else ch->removeOp(dst->getFd()); } }
-                }
-                else {
-                    _s->sendToClient(fd, crlf(":ircserv 472 " + std::string(1, f) + " :Unknown mode flag"));
-                    return;
+                if (changed) {
+                    applied += (add ? "+" : "-");
+                    applied += f;
                 }
             }
-            _s->broadcastToChannel(target, -1, ":" + c->getPrefix() + " MODE " + target + " " + flags + "\r\n");
+            if (!applied.empty()) {
+                // collapse sequences like +-+ into canonical (+/- grouped) is optional; we keep as built
+                std::string paramStr;
+                for (size_t i = 0; i < modeParams.size(); ++i) {
+                    if (i) paramStr += ' ';
+                    paramStr += modeParams[i];
+                }
+                std::string out = ":" + c->getPrefix() + " MODE " + target + " " + applied;
+                if (!paramStr.empty()) out += " " + paramStr;
+                out += "\r\n";
+                _s->broadcastToChannel(target, -1, out);
+            }
             return;
         } else {
             _s->sendToClient(fd, crlf(":ircserv 501 :Unknown MODE flag"));
