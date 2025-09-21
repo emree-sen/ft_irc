@@ -53,4 +53,4 @@ private:
     std::vector<std::string> _channels;
 };
 
-#endif // CLIENT_HPP
+#endif

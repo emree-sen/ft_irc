@@ -13,12 +13,10 @@ namespace Cmd {
     static const std::string JOIN = "JOIN";
     static const std::string PART = "PART";
     static const std::string PRIVMSG = "PRIVMSG";
-    static const std::string NOTICE = "NOTICE";
     static const std::string MODE = "MODE";
     static const std::string TOPIC = "TOPIC";
     static const std::string INVITE = "INVITE";
     static const std::string KICK = "KICK";
-    static const std::string WHOIS = "WHOIS";
 }
 
-#endif // COMMAND_HPP
+#endif

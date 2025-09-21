@@ -8,7 +8,6 @@ Poller::~Poller() {}
 void Poller::add(int fd, short events) {
     for (size_t i = 0; i < _pfds.size(); ++i) {
         if (_pfds[i].fd == fd) {
-            // Eğer fd zaten mevcutsa, ekleme yapma
             return;
         }
     }

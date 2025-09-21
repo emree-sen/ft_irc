@@ -3,7 +3,6 @@
 #include "Client.hpp"
 #include "Channel.hpp"
 #include "Router.hpp"
-#include "Utils.hpp"
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -17,14 +16,13 @@
 #include <csignal>
 
 
-// Kalma sebebi int flags
 static void setNonBlocking(int fd) {
     if (fcntl(fd, F_SETFL, O_NONBLOCK) == -1) {
         throw std::runtime_error("fcntl(F_SETFL) O_NONBLOCK failed");
     }
 }
 
-bool Server::stopFlag = false; // Initialize static stop flag
+bool Server::stopFlag = false;
 
 Server::Server(int port, const std::string &password)
 : _listenFd(-1), _port(port), _password(password), _poller(0) {
@@ -79,15 +77,12 @@ void Server::run() {
         int n = _poller->wait();
         if (n < 0) {
             if (errno == EINTR) {
-                // Interrupted by signal, continue the loop
                 continue;
             }
-            // Log the error and throw an exception for other errors
             std::cerr << "poll() failed: " << strerror(errno) << std::endl;
             throw std::runtime_error("poll() failed");
         }
         if (n == 0) {
-            // Timeout, continue the loop
             continue;
         }
 
@@ -141,7 +136,6 @@ void Server::handleAccept() {
 void Server::addClient(int fd, const std::string &ip, int port) {
     _clients[fd] = new Client(fd, ip, port);
     std::cout << "Client connected: " << ip << ":" << port << " (fd: " << fd << ")" << std::endl;
-    // Hoşgeldin mesajı kaldırıldı - USER komutu tamamlandığında gönderilecek
 }
 
 void Server::removeClient(int fd, const std::string &reason) {
@@ -149,7 +143,6 @@ void Server::removeClient(int fd, const std::string &reason) {
     if (it == _clients.end()) return;
     Client *c = it->second;
     std::cout << "Client disconnected: " << c->getPrefix() << " (" << reason << ")" << std::endl;
-    // remove from channels
     std::vector<std::string> chans = c->getChannels();
     for (size_t i = 0; i < chans.size(); ++i) {
         Channel *ch = findChannel(chans[i]);

@@ -25,4 +25,4 @@ private:
     std::vector<struct pollfd> _pfds;
 };
 
-#endif // POLLER_HPP
+#endif

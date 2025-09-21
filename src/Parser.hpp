@@ -15,4 +15,4 @@ public:
     static Message parse(const std::string &line);
 };
 
-#endif // PARSER_HPP
+#endif

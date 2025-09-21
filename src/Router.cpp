@@ -4,7 +4,6 @@
 #include "Server.hpp"
 #include "Client.hpp"
 #include "Channel.hpp"
-#include "Utils.hpp"
 #include <sstream>
 #include <cctype>
 #include <cstdlib>
@@ -14,7 +13,6 @@ static std::string crlf(const std::string &s) { return s + "\r\n"; }
 
 void Router::handle(int fd, const std::string &line) {
     Message m = Parser::parse(line);
-    // uppercase command
     for (size_t i = 0; i < m.command.size(); ++i) m.command[i] = std::toupper(m.command[i]);
 
     Client *c = _s->getClient(fd);
@@ -25,7 +23,7 @@ void Router::handle(int fd, const std::string &line) {
         _s->sendToClient(fd, crlf(":ircserv PONG :" + m.params[0]));
         return;
     }
-    if (m.command == Cmd::PONG) return; // ignore
+    if (m.command == Cmd::PONG) return;
 
     if (m.command == Cmd::PASS) {
         if (m.params.empty()) { _s->sendToClient(fd, crlf(":ircserv 461 PASS :Not enough parameters")); return; }
@@ -38,13 +36,11 @@ void Router::handle(int fd, const std::string &line) {
         if (m.params.empty()) { _s->sendToClient(fd, crlf(":ircserv 431 :No nickname given")); return; }
         std::string newNick = m.params[0];
 
-        // Validate nickname format
         if (newNick.empty() || newNick.length() > 9) {
             _s->sendToClient(fd, crlf(":ircserv 432 * " + newNick + " :Erroneous nickname"));
             return;
         }
 
-        // Check for invalid characters (space, tab, etc.)
         for (size_t i = 0; i < newNick.length(); ++i) {
             char c = newNick[i];
             if (c == ' ' || c == '\t' || c == '\r' || c == '\n' || c == ',') {
@@ -69,7 +65,6 @@ void Router::handle(int fd, const std::string &line) {
             _s->sendToClient(fd, crlf(":ircserv 464 :Password required"));
         }
         else if (c->authed()) {
-            // Client is now fully authenticated, send welcome messages
             _s->sendToClient(fd, crlf(":ircserv 001 " + c->getNick() + " :Welcome to the ft_irc network, " + c->getNick()));
             _s->sendToClient(fd, crlf(":ircserv 002 " + c->getNick() + " :Your host is ircserv, running version 1.0"));
             _s->sendToClient(fd, crlf(":ircserv 003 " + c->getNick() + " :This server was created sometime"));
@@ -79,14 +74,12 @@ void Router::handle(int fd, const std::string &line) {
         return;
     }
 
-    // Check if this is a known command that requires authentication
     bool isKnownCommand = (m.command == Cmd::QUIT || m.command == Cmd::JOIN ||
                           m.command == Cmd::PART || m.command == Cmd::PRIVMSG ||
-                          m.command == Cmd::NOTICE || m.command == Cmd::MODE ||
+                          m.command == Cmd::MODE ||
                           m.command == Cmd::TOPIC || m.command == Cmd::INVITE ||
-                          m.command == Cmd::KICK || m.command == Cmd::WHOIS);
+                          m.command == Cmd::KICK);
 
-    // If it's a known command that requires auth, check authentication
     if (isKnownCommand && !c->authed()) {
         _s->sendToClient(fd, crlf(":ircserv 451 :You have not registered"));
         return;
@@ -97,7 +90,6 @@ void Router::handle(int fd, const std::string &line) {
         std::string quitReason = m.params.empty() ? "Client Quit" : m.params[0];
         std::string quitMsg = ":" + c->getPrefix() + " QUIT :" + quitReason;
 
-        // Server log: User quit
         std::cout << "[SERVER] " << c->getNick() << " (" << c->getUser() << ") quit from server"
                   << " (reason: " << quitReason << ")";
         if (!chans.empty()) {
@@ -125,7 +117,6 @@ void Router::handle(int fd, const std::string &line) {
         std::string chanName = m.params[0];
         if (chanName.empty() || chanName[0] != '#') { _s->sendToClient(fd, crlf(":ircserv 476 :Bad Channel Mask")); return; }
         Channel *ch = _s->getOrCreateChannel(chanName);
-        // very basic mode checks (key/invite/limit)
         if (!ch->getKey().empty()) {
             if (m.params.size() < 2 || m.params[1] != ch->getKey()) {
                 _s->sendToClient(fd, crlf(":ircserv 475 " + chanName + " :Cannot join channel (+k)")); return;
@@ -134,26 +125,25 @@ void Router::handle(int fd, const std::string &line) {
         if (ch->isInviteOnly() && !ch->isInvited(fd)) {
             _s->sendToClient(fd, crlf(":ircserv 473 " + chanName + " :Cannot join channel (+i)")); return;
         }
-        // Check channel limit only if user is not invited
+
         if (ch->getLimit() > 0 && (int)ch->getMembers().size() >= ch->getLimit() && !ch->isInvited(fd)) {
             _s->sendToClient(fd, crlf(":ircserv 471 " + chanName + " :Channel is full")); return;
         }
         ch->addMember(fd);
         c->joinChannel(chanName);
-        if (ch->getMembers().size() == 1) ch->addOp(fd); // first member is op
+        if (ch->getMembers().size() == 1) ch->addOp(fd);
         std::string joinMsg = ":" + c->getPrefix() + " JOIN " + chanName;
         _s->sendToClient(fd, crlf(joinMsg));
         _s->broadcastToChannel(chanName, fd, crlf(joinMsg));
         if (!ch->getTopic().empty()) _s->sendToClient(fd, crlf(":ircserv 332 " + c->getNick() + " " + chanName + " :" + ch->getTopic()));
 
-        // Send RPL_NAMREPLY with channel members
         std::string members;
         const std::vector<int> &fds = ch->getMembers();
         for (size_t i = 0; i < fds.size(); ++i) {
             Client *member = _s->getClient(fds[i]);
             if (member) {
                 if (!members.empty()) members += " ";
-                if (ch->isOp(fds[i])) members += "@"; // prefix operator
+                if (ch->isOp(fds[i])) members += "@";
                 members += member->getNick();
             }
         }
@@ -170,7 +160,6 @@ void Router::handle(int fd, const std::string &line) {
         ch->removeMember(fd);
         c->leaveChannel(chanName);
 
-        // Server log: User left channel
         std::string partReason = (m.params.size() >= 2) ? m.params[1] : "No reason given";
         std::cout << "[SERVER] " << c->getNick() << " (" << c->getUser() << ") left channel "
                   << chanName << " (reason: " << partReason << ")" << std::endl;
@@ -181,7 +170,7 @@ void Router::handle(int fd, const std::string &line) {
         return;
     }
 
-    if (m.command == Cmd::PRIVMSG || m.command == Cmd::NOTICE) {
+    if (m.command == Cmd::PRIVMSG) {
         if (m.params.empty()) {
             _s->sendToClient(fd, crlf(":ircserv 411 " + m.command + " :No recipient given"));
             return;
@@ -216,7 +205,7 @@ void Router::handle(int fd, const std::string &line) {
         std::string chan = m.params[0];
         Channel *ch = _s->findChannel(chan);
         if (!ch || !ch->isMember(fd)) { _s->sendToClient(fd, crlf(":ircserv 442 " + chan + " :You're not on that channel")); return; }
-        if (m.params.size() == 1) { // get topic
+        if (m.params.size() == 1) {
             if (ch->getTopic().empty()) _s->sendToClient(fd, crlf(":ircserv 331 " + chan + " :No topic is set"));
             else _s->sendToClient(fd, crlf(":ircserv 332 " + chan + " :" + ch->getTopic()));
             return;
@@ -262,13 +251,11 @@ void Router::handle(int fd, const std::string &line) {
 
         std::string msg = ":" + c->getPrefix() + " KICK " + chan + " " + nick + (m.params.size()>=3?" :"+m.params[2]:"");
 
-        // Send KICK message to all channel members manually
         const std::vector<int> &members = ch->getMembers();
         for (size_t i = 0; i < members.size(); ++i) {
             _s->sendToClient(members[i], crlf(msg));
         }
 
-        // Now remove the user from the channel
         ch->removeMember(dst->getFd());
         dst->leaveChannel(chan);
         return;
@@ -287,27 +274,24 @@ void Router::handle(int fd, const std::string &line) {
                 return;
             }
             if (m.params.size() == 1) {
-                // Query current modes: include parameters like key and limit
                 std::string reply = ch->fullModeString();
                 _s->sendToClient(fd, crlf(":ircserv 324 " + target + " " + reply));
                 return;
             }
-            // Changing modes requires channel membership
             if (!ch->isMember(fd)) {
                 _s->sendToClient(fd, crlf(":ircserv 442 " + target + " :You're not on that channel"));
                 return;
             }
-            // And operator privileges
             if (!ch->isOp(fd)) {
                 _s->sendToClient(fd, crlf(":ircserv 482 " + target + " :You're not channel operator"));
                 return;
             }
 
             bool add = true;
-            size_t pidx = 2; // parameter index after flag string
+            size_t pidx = 2;
             std::string flagsInput = m.params[1];
-            std::string applied; // accumulate final mode string like +it-l
-            std::vector<std::string> modeParams; // params that correspond to modes requiring them
+            std::string applied;
+            std::vector<std::string> modeParams;
 
             for (size_t i = 0; i < flagsInput.size(); ++i) {
                 char f = flagsInput[i];
@@ -364,7 +348,6 @@ void Router::handle(int fd, const std::string &line) {
                 }
             }
             if (!applied.empty()) {
-                // collapse sequences like +-+ into canonical (+/- grouped) is optional; we keep as built
                 std::string paramStr;
                 for (size_t i = 0; i < modeParams.size(); ++i) {
                     if (i) paramStr += ' ';
@@ -382,22 +365,5 @@ void Router::handle(int fd, const std::string &line) {
         return;
     }
 
-    if (m.command == Cmd::WHOIS) {
-        if (m.params.empty()) {
-            _s->sendToClient(fd, crlf(":ircserv 431 :No nickname given"));
-            return;
-        }
-        std::string targetNick = m.params[0];
-        Client *target = _s->findClientByNick(targetNick);
-        if (!target) {
-            _s->sendToClient(fd, crlf(":ircserv 401 " + targetNick + " :No such nick/channel"));
-            return;
-        }
-        _s->sendToClient(fd, crlf(":ircserv 311 " + c->getNick() + " " + target->getNick() + " " + target->getUser() + " " + target->getHost() + " * :" + target->getReal()));
-        _s->sendToClient(fd, crlf(":ircserv 318 " + c->getNick() + " " + target->getNick() + " :End of WHOIS list"));
-        return;
-    }
-
-    // unknown command handling
     _s->sendToClient(fd, crlf(":ircserv 421 " + m.command + " :Unknown command"));
 }

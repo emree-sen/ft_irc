@@ -1,4 +1,3 @@
-# ft_irc Makefile
 
 NAME := ircserv
 CXX := c++
@@ -16,9 +15,7 @@ SRCS := \
 	$(SRC_DIR)/Client.cpp \
 	$(SRC_DIR)/Channel.cpp \
 	$(SRC_DIR)/Parser.cpp \
-	$(SRC_DIR)/Router.cpp \
-	$(SRC_DIR)/Command.cpp \
-	$(SRC_DIR)/Utils.cpp
+	$(SRC_DIR)/Router.cpp
 
 OBJS := $(SRCS:$(SRC_DIR)/%.cpp=$(OBJ_DIR)/%.o)
 

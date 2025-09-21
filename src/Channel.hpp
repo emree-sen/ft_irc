@@ -13,19 +13,16 @@ public:
 
     const std::string &getName() const { return _name; }
 
-    // membership
     void addMember(int fd);
     void removeMember(int fd);
     bool isMember(int fd) const;
     const std::vector<int> &getMembers() const { return _members; }
     bool empty() const { return _members.empty(); }
 
-    // operators
     void addOp(int fd);
     void removeOp(int fd);
     bool isOp(int fd) const;
 
-    // topic/key/limit/modes
     void setTopic(const std::string &t) { _topic = t; }
     const std::string &getTopic() const { return _topic; }
 
@@ -41,13 +38,10 @@ public:
     void setTopicRestricted(bool b) { _modeT = b; }
     bool isTopicRestricted() const { return _modeT; }
 
-    // compose current mode flags (without parameters) e.g. +itkl
     std::string modeFlags() const;
 
-    // full mode string including parameters for k and l if set
     std::string fullModeString() const;
 
-    // invites
     void invite(int fd);
     bool isInvited(int fd) const;
     void revokeInvite(int fd);
@@ -59,14 +53,14 @@ private:
 
     std::string _topic;
     std::string _key;
-    int _limit; // 0 = unlimited
+    int _limit;
 
-    bool _modeI; // invite-only
-    bool _modeT; // topic restricted
-    bool _modeK; // has key
-    bool _modeL; // has limit
+    bool _modeI;
+    bool _modeT;
+    bool _modeK;
+    bool _modeL;
 
     std::set<int> _invited;
 };
 
-#endif // CHANNEL_HPP
+#endif
